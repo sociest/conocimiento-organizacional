@@ -1,0 +1,111 @@
+name: Deploy Quartz to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+      - v5
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Quartz Engine (v5)
+        uses: actions/checkout@v6
+        with:
+          ref: v5
+          fetch-depth: 0
+
+      - name: Checkout Content from main
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          path: main-content
+          fetch-depth: 0
+
+      - name: Sync content from main branch into content directory
+        run: |
+          mkdir -p content
+          rm -rf content/*
+          
+          # Check if content exists in a content/ subfolder or repository root in main
+          if [ -d "main-content/content" ] && [ "$(ls -A main-content/content 2>/dev/null)" ]; then
+            echo "Copying from main-content/content/..."
+            rsync -av --exclude='.git*' --exclude='.github' main-content/content/ content/
+          else
+            echo "Copying from main-content root..."
+            rsync -av --exclude='.git*' --exclude='.github' main-content/ content/
+          fi
+          
+          # Clean temporary source directory
+          rm -rf main-content
+          
+          # Ensure index.md exists so Quartz can build home page
+          if [ ! -f "content/index.md" ]; then
+            if [ -f "content/README.md" ]; then
+              echo "Using content/README.md as content/index.md"
+              cp content/README.md content/index.md
+            else
+              echo "Creating fallback content/index.md"
+              echo "# Conocimiento Organizacional" > content/index.md
+            fi
+          fi
+          
+          echo "Content folder populated with:"
+          ls -la content/
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Cache dependencies
+        uses: actions/cache@v5
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Cache Quartz plugins
+        uses: actions/cache@v5
+        with:
+          path: .quartz/plugins
+          key: ${{ runner.os }}-plugins-${{ hashFiles('quartz.lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-plugins-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Quartz plugins
+        run: npx quartz plugin install
+
+      - name: Build Quartz
+        run: npx quartz build
+
+      - name: Upload artifact for GitHub Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+  deploy:
+    needs: build
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

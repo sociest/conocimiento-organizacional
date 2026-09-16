@@ -1,13 +1,14 @@
 # yaml-language-server: $schema=./quartz/plugins/quartz-plugins.schema.json
 configuration:
-  pageTitle: Quartz 5
+  pageTitle: Conocimiento Organizacional de la Sociedad Científica de Estudiantes de Estadística
   pageTitleSuffix: ""
   enableSPA: true
   enablePopovers: true
   analytics:
-    provider: plausible
-  locale: en-US
-  baseUrl: quartz.jzhao.xyz
+    provider: google
+    tagId: "G-PM5ELYL7J3"
+  locale: es-ES
+  baseUrl: static.sociest.org/conocimiento-organizacional
   ignorePatterns:
     - private
     - templates
